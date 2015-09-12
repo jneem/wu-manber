@@ -1,14 +1,8 @@
-#![feature(test)]
-
 use std::cmp::min;
 use std::u16;
 
 #[cfg(test)]
 extern crate aho_corasick;
-#[cfg(test)]
-extern crate test;
-#[cfg(test)]
-mod regexdna_input;
 
 #[derive(Debug)]
 pub struct Tables {
@@ -213,36 +207,4 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod benches {
-    use ::Tables;
-    use aho_corasick::{AcAutomaton, Automaton};
-    use ::regexdna_input::INPUT;
-    use test::Bencher;
-
-    fn shootout_needles() -> Vec<&'static str> {
-        vec![
-            "cgggtaaa",
-            "ggggtaaa",
-            "tgggtaaa",
-            "tttaccca",
-            "tttacccc",
-            "tttacccg",
-        ]
-    }
-
-    #[bench]
-    fn shootout(b: &mut Bencher) {
-        let tables = Tables::new(shootout_needles());
-        b.bytes = INPUT.len() as u64;
-        b.iter(|| assert_eq!(tables.find(INPUT.as_bytes()).count(), 3));
-    }
-
-    #[bench]
-    fn shootout_ac(b: &mut Bencher) {
-        let ac = AcAutomaton::new(shootout_needles());
-        b.bytes = INPUT.len() as u64;
-        b.iter(|| assert_eq!(ac.find(INPUT).count(), 3));
-    }
-}
 
