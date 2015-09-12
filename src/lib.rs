@@ -1,33 +1,83 @@
+// Copyright 2015 Joe Neeman.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms
+
+//! This crate gives an implementation of Wu and Manber's algorithm for finding one of several
+//! strings (which we will call "needles") in a much larger string (the "haystack").  This is not
+//! to be confused with Wu and Manber's algorithm for fuzzy matching.
+//!
+//! The Wu-Manber algorithm is very efficient when all of the strings to be matched are long. It
+//! requires a pre-processing step with a fair amount of memory overhead -- currently about 32kb in
+//! this implementation, but future improvements may reduce that when there are not too many
+//! needles.
+//!
+//! This implementation supports a maximum of 65536 needles, each of which can be at most 65536
+//! bytes long. These requirements may be relaxed in the future.
+//!
+//! # Example
+//! ```
+//! use wu_manber::{Match, TwoByteWM};
+//! let needles = vec!["quick", "brown", "lazy", "wombat"];
+//! let haystack = "The quick brown fox jumps over the lazy dog.";
+//! let searcher = TwoByteWM::new(&needles);
+//! let mat = searcher.find(haystack.as_bytes()).next().unwrap();
+//! assert_eq!(mat, Match { start: 4, end: 9, pat_idx: 0 });
+//! ```
+
 use std::cmp::min;
-use std::u16;
 
 #[cfg(test)]
 extern crate aho_corasick;
 
-#[derive(Debug)]
-pub struct Tables {
-    /// The patterns that we are trying to match against, and their indices.
-    ///
-    /// Each of these has length (in bytes) at least 2.  They are sorted in increasing order of the
-    /// hash value of their two critical bytes.
-    patterns: Vec<(usize, Vec<u8>)>,
+/// This is the type for indexing into the bytes of the needles.  Its size determines the maximum
+/// length of a needle.
+type NByteIdx = u16;
 
-    /// For each of the patterns above, this contains the first two bytes, concatenated into a
+/// This is the type for indexing into the list of needles.  Its size determines the maximum number
+/// of needles.
+type NeedleIdx = u16;
+
+/// `TwoByteWM` stores the precomputed tables needed for a two-byte-wide implementation of the
+/// Wu-Manber algorithm.
+///
+/// "Two-byte-wide" means that the search phase in the Wu-Manber algorithm uses spans of two bytes
+/// to look for potential matches.  This is suitable for moderately sized sets of needles; if there
+/// are too many needles then it might be faster to use spans of three bytes (but that isn't yet
+/// implemented by this crate).
+#[derive(Debug)]
+pub struct TwoByteWM {
+    /// The needles that we are trying to match against, and their indices.
+    ///
+    /// Each of the needles has length (in bytes) at least 2.  They are sorted in increasing order
+    /// of the hash value of their two critical bytes.
+    needles: Vec<(usize, Vec<u8>)>,
+
+    /// For each of the needles above, this contains the first two bytes, concatenated into a
     /// `u16`.
     ///
-    /// This `Vec` is indexed in the same way as `patterns`.
+    /// This `Vec` is indexed in the same way as `needles`.
     prefix: Vec<u16>,
 
-    /// The minimimum length of any pattern.
-    pat_len: u16,
+    /// The minimimum length of any needle.
+    pat_len: NByteIdx,
 
-    /// If `shift[HashFn(a, b)] = i` then no pattern contains the two-byte string `ab` starting
+    /// If `shift[HashFn(a, b)] = i` then no needle contains the two-byte string `ab` starting
     /// anywhere between positions `pat_len - 2 - i` and `pat_len - 2`.
-    shift: Vec<u16>,
+    ///
+    /// Note that because this `Vec` can be quite long, we might save a substantial amount of space
+    /// by shrinking the size of `NByteIdx`.
+    shift: Vec<NByteIdx>,
 
-    /// If `hash[HashFn(a, b)] = i` then the patterns whose critical bytes hash to `HashFn(a, b)`
-    /// begin at `patterns[i]`.
-    hash: Vec<u16>,
+    /// If `hash[HashFn(a, b)] = i` then the needles whose critical bytes hash to `HashFn(a, b)`
+    /// begin at `needles[i]`.
+    ///
+    /// Note that because this `Vec` can be quite long, we might save a substantial amount of space
+    /// by shrinking the size of `NeedleIdx`.
+    hash: Vec<NeedleIdx>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -38,7 +88,7 @@ pub struct Match {
 }
 
 pub struct Matches<'a, 'b> {
-    tables: &'a Tables,
+    wm: &'a TwoByteWM,
     haystack: &'b [u8],
     cur_pos: usize,
 }
@@ -46,71 +96,75 @@ pub struct Matches<'a, 'b> {
 impl<'a, 'b> Iterator for Matches<'a, 'b> {
     type Item = Match;
     fn next(&mut self) -> Option<Match> {
-        self.tables.find_from(self.haystack, self.cur_pos).map(|m| { self.cur_pos = m.end; m })
+        self.wm.find_from(self.haystack, self.cur_pos).map(|m| { self.cur_pos = m.end; m })
     }
 }
 
 /// For now, we default to this hash function (which is the one from the original paper of Wu and
-/// Manber). In the future, we may want to look for a better one depending on the patterns.
-fn hash_fn(a: u8, b: u8) -> u16 {
-    ((a as u16) << 5) + (b as u16)
+/// Manber). In the future, we may want to look for a better one depending on the needles.
+fn hash_fn(a: u8, b: u8) -> NeedleIdx {
+    ((a as NeedleIdx) << 5) + (b as NeedleIdx)
 }
 
 const HASH_MAX: usize = (0xFFusize << 5) + 0xFF;
 
-impl Tables {
-    fn pat(&self, p_idx: u16) -> &[u8] {
-        &self.patterns[p_idx as usize].1
+impl TwoByteWM {
+    fn pat(&self, p_idx: NeedleIdx) -> &[u8] {
+        &self.needles[p_idx as usize].1
     }
 
-    fn pat_idx(&self, p_idx: u16) -> usize {
-        self.patterns[p_idx as usize].0
+    fn pat_idx(&self, p_idx: NeedleIdx) -> usize {
+        self.needles[p_idx as usize].0
     }
 
-    pub fn new<I, P>(strings: I) -> Tables
+    /// Creates lookup tables to efficiently search for the given needles.
+    ///
+    /// The order of `needles` is significant, since all `Match`es returned from this `TwoByteWM`
+    /// will include an index into `needles` saying which needle matched.
+    pub fn new<I, P>(needles: I) -> TwoByteWM
             where P: AsRef<[u8]>, I: IntoIterator<Item=P> {
-        let patterns: Vec<_> = strings.into_iter().map(|s| s.as_ref().to_vec()).collect();
-        if patterns.is_empty() {
-            panic!("cannot create Tables from an empty set of patterns");
-        } else if patterns.len() > u16::MAX as usize {
-            panic!("we only support up to u16::MAX patterns");
+        let needles: Vec<_> = needles.into_iter().map(|s| s.as_ref().to_vec()).collect();
+        if needles.is_empty() {
+            panic!("cannot create TwoByteWM from an empty set of needles");
+        } else if needles.len() > NeedleIdx::max_value() as usize {
+            panic!("too many needles");
         }
 
-        let pat_len = patterns.iter().map(|p| p.len()).min().unwrap();
+        let pat_len = needles.iter().map(|p| p.len()).min().unwrap();
         if pat_len < 2 {
-            panic!("all patterns must have length (in bytes) at least 2");
-        } else if pat_len > u16::MAX as usize {
-            panic!("we only support pattern lengths up to u16::MAX");
+            panic!("all needles must have length (in bytes) at least 2");
+        } else if pat_len > NByteIdx::max_value() as usize {
+            panic!("these needles are too long");
         }
-        let pat_len = pat_len as u16;
+        let pat_len = pat_len as NByteIdx;
 
         let h = |p: &[u8]| hash_fn(p[(pat_len-2) as usize], p[(pat_len-1) as usize]);
-        let mut patterns: Vec<_> = patterns.into_iter().enumerate().collect();
-        patterns.sort_by(|p, q| h(&p.1).cmp(&h(&q.1)));
-        let patterns = patterns;
-        let prefix: Vec<_> = patterns.iter()
+        let mut needles: Vec<_> = needles.into_iter().enumerate().collect();
+        needles.sort_by(|p, q| h(&p.1).cmp(&h(&q.1)));
+        let needles = needles;
+        let prefix: Vec<_> = needles.iter()
             .map(|p| ((p.1[0] as u16) << 8) + (p.1[1] as u16))
             .collect();
 
-        let mut hash = vec![0u16; HASH_MAX + 2];
-        for (p_idx, &(_, ref p)) in patterns.iter().enumerate().rev() {
+        let mut hash = vec![0; HASH_MAX + 2];
+        for (p_idx, &(_, ref p)) in needles.iter().enumerate().rev() {
             let h_idx = h(&p) as usize;
-            hash[h_idx] = p_idx as u16;
+            hash[h_idx] = p_idx as NeedleIdx;
             if hash[h_idx + 1] == 0 {
-                hash[h_idx + 1] = p_idx as u16 + 1;
+                hash[h_idx + 1] = p_idx as NeedleIdx + 1;
             }
         }
 
         let mut shift = vec![pat_len - 1; HASH_MAX + 1];
-        for &(_, ref p) in &patterns {
+        for &(_, ref p) in &needles {
             for p_pos in 0..(pat_len - 1) {
                 let h = hash_fn(p[p_pos as usize], p[(p_pos + 1) as usize]);
                 shift[h as usize] = min(shift[h as usize], pat_len - p_pos - 2);
             }
         }
 
-        Tables {
-            patterns: patterns,
+        TwoByteWM {
+            needles: needles,
             prefix: prefix,
             pat_len: pat_len,
             shift: shift,
@@ -118,9 +172,10 @@ impl Tables {
         }
     }
 
+    /// Searches for a single match, starting from the given byte offset.
     pub fn find_from<P>(&self, haystack: P, offset: usize) -> Option<Match> where P: AsRef<[u8]> {
         // `pos` points to the index in `haystack` that we are trying to align against the index
-        // `pat_len - 1` of the patterns.
+        // `pat_len - 1` of the needles.
         let pat_len = self.pat_len as usize;
         let mut pos = offset + pat_len - 1;
         let haystack = haystack.as_ref();
@@ -128,12 +183,12 @@ impl Tables {
             let h = hash_fn(haystack[pos - 1], haystack[pos]) as usize;
             let shift = self.shift[h] as usize;
             if shift == 0 {
-                // We might have matched the end of some pattern.  Iterate over all the patterns
+                // We might have matched the end of some needle.  Iterate over all the needles
                 // that we might have matched, and see if they match the beginning.
                 let a = haystack[pos - pat_len + 1];
                 let b = haystack[pos - pat_len + 2];
                 let prefix = ((a as u16) << 8) + (b as u16);
-                let mut found: Option<u16> = None;
+                let mut found: Option<NeedleIdx> = None;
                 for p_idx in self.hash[h]..self.hash[h+1] {
                     if self.prefix[p_idx as usize] == prefix {
                         // The prefix matches too, so now check for the full match.
@@ -166,9 +221,10 @@ impl Tables {
         None
     }
 
+    /// Returns an iterator over non-overlapping matches.
     pub fn find<'a, 'b>(&'a self, haystack: &'b [u8]) -> Matches<'a, 'b> {
         Matches {
-            tables: &self,
+            wm: &self,
             haystack: haystack,
             cur_pos: 0,
         }
@@ -177,7 +233,7 @@ impl Tables {
 
 #[cfg(test)]
 mod tests {
-    use ::{Match, Tables};
+    use ::{Match, TwoByteWM};
     use aho_corasick::{AcAutomaton, Automaton};
 
     #[test]
@@ -195,10 +251,10 @@ mod tests {
             "abcdefghijklmnopqrstuvwxyz",
         ];
 
-        let tables = Tables::new(&needles);
+        let wm = TwoByteWM::new(&needles);
         let ac = AcAutomaton::new(&needles);
         for hay in &haystacks {
-            let wm_answer: Vec<Match> = tables.find(hay.as_bytes()).collect();
+            let wm_answer: Vec<Match> = wm.find(hay.as_bytes()).collect();
             let ac_answer: Vec<Match> = ac.find(hay)
                 .map(|m| Match { start: m.start, end: m.end, pat_idx: m.pati })
                 .collect();
