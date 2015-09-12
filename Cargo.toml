@@ -1,0 +1,8 @@
+[package]
+name = "wu-manber"
+version = "0.1.0"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+
+[dev-dependencies]
+aho-corasick = "0.3.2"
+
