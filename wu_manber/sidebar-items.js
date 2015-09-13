@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Match",""],["Matches",""],["TwoByteWM","`TwoByteWM` stores the precomputed tables needed for a two-byte-wide implementation of the Wu-Manber algorithm."]]});

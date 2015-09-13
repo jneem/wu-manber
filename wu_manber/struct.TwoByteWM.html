@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `TwoByteWM` struct in crate `wu_manber`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, TwoByteWM">
+
+    <title>wu_manber::TwoByteWM - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>wu_manber</a></p><script>window.sidebarCurrent = {name: 'TwoByteWM', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>wu_manber</a>::<wbr><a class='struct' href=''>TwoByteWM</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-11' class='srclink' href='../src/wu_manber/lib.rs.html#52-81' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct TwoByteWM {
+    // some fields omitted
+}</pre><div class='docblock'><p><code>TwoByteWM</code> stores the precomputed tables needed for a two-byte-wide implementation of the
+Wu-Manber algorithm.</p>
+
+<p>&quot;Two-byte-wide&quot; means that the search phase in the Wu-Manber algorithm uses spans of two bytes
+to look for potential matches.  This is suitable for moderately sized sets of needles; if there
+are too many needles then it might be faster to use spans of three bytes (but that isn&#39;t yet
+implemented by this crate).</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../wu_manber/struct.TwoByteWM.html' title='wu_manber::TwoByteWM'>TwoByteWM</a></code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>&lt;I, P&gt;(needles: I) -&gt; <a class='struct' href='../wu_manber/struct.TwoByteWM.html' title='wu_manber::TwoByteWM'>TwoByteWM</a> <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>[<a href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>]</a>&gt;, I: <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.IntoIterator.html' title='core::iter::IntoIterator'>IntoIterator</a>&lt;Item=P&gt;</span></code></h4>
+<div class='docblock'><p>Creates lookup tables to efficiently search for the given needles.</p>
+
+<p>The order of <code>needles</code> is significant, since all <code>Match</code>es returned from this <code>TwoByteWM</code>
+will include an index into <code>needles</code> saying which needle matched.</p>
+</div><h4 id='method.find_from' class='method'><code>fn <a href='#method.find_from' class='fnname'>find_from</a>&lt;P&gt;(&amp;self, haystack: P, offset: <a href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../wu_manber/struct.Match.html' title='wu_manber::Match'>Match</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>[<a href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>]</a>&gt;</span></code></h4>
+<div class='docblock'><p>Searches for a single match, starting from the given byte offset.</p>
+</div><h4 id='method.find' class='method'><code>fn <a href='#method.find' class='fnname'>find</a>&lt;'a, 'b&gt;(&amp;'a self, haystack: &amp;'b <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='struct' href='../wu_manber/struct.Matches.html' title='wu_manber::Matches'>Matches</a>&lt;'a, 'b&gt;</code></h4>
+<div class='docblock'><p>Returns an iterator over non-overlapping matches.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../wu_manber/struct.TwoByteWM.html' title='wu_manber::TwoByteWM'>TwoByteWM</a></code></h3><div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#method.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div>
+            <div class="shortcuts">
+                <h1>Keyboard Shortcuts</h1>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h1>Search Tricks</h1>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "wu_manber";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
