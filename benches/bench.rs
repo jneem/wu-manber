@@ -5,7 +5,7 @@ extern crate test;
 extern crate wu_manber;
 
 use aho_corasick::{AcAutomaton, Automaton};
-use wu_manber::Tables;
+use wu_manber::TwoByteWM;
 use test::Bencher;
 
 const INPUT: &'static str = include_str!("regexdna_input.txt");
@@ -23,9 +23,9 @@ fn shootout_needles() -> Vec<&'static str> {
 
 #[bench]
 fn shootout(b: &mut Bencher) {
-    let tables = Tables::new(shootout_needles());
+    let wm = TwoByteWM::new(shootout_needles());
     b.bytes = INPUT.len() as u64;
-    b.iter(|| assert_eq!(tables.find(INPUT.as_bytes()).count(), 3));
+    b.iter(|| assert_eq!(wm.find(INPUT).count(), 3));
 }
 
 #[bench]
