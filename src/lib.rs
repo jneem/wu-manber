@@ -185,15 +185,15 @@ impl TwoByteWM {
             if shift == 0 {
                 // We might have matched the end of some needle.  Iterate over all the needles
                 // that we might have matched, and see if they match the beginning.
-                let a = haystack[pos - pat_len + 1];
-                let b = haystack[pos - pat_len + 2];
+                let a = haystack[1 + pos - pat_len];
+                let b = haystack[2 + pos - pat_len];
                 let prefix = ((a as u16) << 8) + (b as u16);
                 let mut found: Option<NeedleIdx> = None;
                 for p_idx in self.hash[h]..self.hash[h+1] {
                     if self.prefix[p_idx as usize] == prefix {
                         // The prefix matches too, so now check for the full match.
                         let p = self.pat(p_idx);
-                        if haystack[(pos - pat_len + 1)..].starts_with(&p) {
+                        if haystack[(1 + pos - pat_len)..].starts_with(&p) {
                             found = match found {
                                 None => Some(p_idx),
                                 Some(q_idx) => {
@@ -206,8 +206,8 @@ impl TwoByteWM {
                 }
                 if let Some(p_idx) = found {
                     return Some(Match {
-                        start: pos - pat_len + 1,
-                        end: pos - pat_len + 1 + self.pat(p_idx).len(),
+                        start: 1 + pos - pat_len,
+                        end: 1 + pos - pat_len + self.pat(p_idx).len(),
                         pat_idx: self.pat_idx(p_idx),
                     })
                 }
@@ -260,6 +260,22 @@ mod tests {
                 .collect();
             assert_eq!(wm_answer, ac_answer);
         }
+    }
+
+    #[test]
+    fn match_at_beginning() {
+        let needles = vec![
+            "Hello world",
+            "it is a beautiful day",
+            "somewhere."
+        ];
+
+        let haystack = "it is a beautiful day in Cairo";
+        let wm = TwoByteWM::new(&needles);
+        let results = wm.find(haystack).collect::<Vec<_>>();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].pat_idx, 1);
     }
 }
 
