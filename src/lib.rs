@@ -87,16 +87,23 @@ pub struct Match {
     pub pat_idx: usize,
 }
 
-pub struct Matches<'a, 'b> {
+pub struct Matches<'a, P: AsRef<[u8]>> {
     wm: &'a TwoByteWM,
-    haystack: &'b [u8],
+    haystack: P,
     cur_pos: usize,
 }
-
-impl<'a, 'b> Iterator for Matches<'a, 'b> {
+impl<'a, P> Iterator for Matches<'a, P>
+where
+    P: AsRef<[u8]>,
+{
     type Item = Match;
     fn next(&mut self) -> Option<Match> {
-        self.wm.find_from(self.haystack, self.cur_pos).map(|m| { self.cur_pos = m.end; m })
+        self.wm
+            .find_from(self.haystack.as_ref(), self.cur_pos)
+            .map(|m| {
+                self.cur_pos = m.end;
+                m
+            })
     }
 }
 
@@ -122,7 +129,10 @@ impl TwoByteWM {
     /// The order of `needles` is significant, since all `Match`es returned from this `TwoByteWM`
     /// will include an index into `needles` saying which needle matched.
     pub fn new<I, P>(needles: I) -> TwoByteWM
-            where P: AsRef<[u8]>, I: IntoIterator<Item=P> {
+    where
+        P: AsRef<[u8]>,
+        I: IntoIterator<Item = P>,
+    {
         let needles: Vec<_> = needles.into_iter().map(|s| s.as_ref().to_vec()).collect();
         if needles.is_empty() {
             panic!("cannot create TwoByteWM from an empty set of needles");
@@ -173,7 +183,10 @@ impl TwoByteWM {
     }
 
     /// Searches for a single match, starting from the given byte offset.
-    pub fn find_from<P>(&self, haystack: P, offset: usize) -> Option<Match> where P: AsRef<[u8]> {
+    pub fn find_from<P>(&self, haystack: P, offset: usize) -> Option<Match>
+    where
+        P: AsRef<[u8]>,
+    {
         // `pos` points to the index in `haystack` that we are trying to align against the index
         // `pat_len - 1` of the needles.
         let pat_len = self.pat_len as usize;
@@ -222,10 +235,13 @@ impl TwoByteWM {
     }
 
     /// Returns an iterator over non-overlapping matches.
-    pub fn find<'a, 'b>(&'a self, haystack: &'b str) -> Matches<'a, 'b> {
+    pub fn find<'a, 'b, P>(&'a self, haystack: P) -> Matches<'a, P>
+    where
+        P: AsRef<[u8]> + 'b,
+    {
         Matches {
             wm: &self,
-            haystack: haystack.as_bytes(),
+            haystack,
             cur_pos: 0,
         }
     }
@@ -260,6 +276,27 @@ mod tests {
                 .collect();
             assert_eq!(wm_answer, ac_answer);
         }
+    }
+
+    #[test]
+    fn binary() {
+        let mut needles: Vec<Vec<u8>> = Vec::new();
+        needles.push("foo".into());
+        needles.push("\x00\x0f".into());
+        let haystack: Vec<u8> = "--foo-b\x00\x0f".into();
+
+        let wm = TwoByteWM::new(&needles);
+        let results = wm.find(haystack).collect::<Vec<_>>();
+
+        assert_eq!(results.len(), 2, "expected 2 results");
+
+        assert_eq!(results[0].pat_idx, 0);
+        assert_eq!(results[0].start, 2);
+        assert_eq!(results[0].end, 5);
+
+        assert_eq!(results[1].pat_idx, 1);
+        assert_eq!(results[1].start, 7);
+        assert_eq!(results[1].end, 9);
     }
 
     #[test]
